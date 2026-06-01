@@ -1,7 +1,9 @@
 # amazon-finder
 
-A small command-line **agent that finds suitable Amazon products** based on two
-signals that matter for sourcing/reselling research:
+An **agent that finds suitable Amazon products** based on two signals that
+matter for sourcing/reselling research. It runs as a **command-line tool** *and*
+as a **web service you can deploy to [Render.com](https://render.com)** (see
+[Deploy on Render](#deploy-on-rendercom)).
 
 1. **Recent monthly sales** — the *"X+ bought in past month"* badge Amazon shows
    on listings (default threshold: **≥ 50/month**).
@@ -34,7 +36,7 @@ checking.
 ## Install
 
 ```bash
-pip install -r requirements.txt        # just needs `requests`
+pip install -r requirements.txt
 # or install the CLI entry point:
 pip install -e .
 ```
@@ -88,6 +90,53 @@ If installed via `pip install -e .`, use the `amazon-finder` command instead of
 | `-o, --output` | stdout | Write to a file |
 
 You must provide a `--search` term and/or a `--category` id.
+
+## Web service
+
+The same engine is exposed over HTTP so you can use it from a browser (this is
+what gets deployed to Render):
+
+```bash
+# local dev server
+python -m amazon_finder.web
+# or production server (what Render runs):
+gunicorn amazon_finder.web:app --bind 0.0.0.0:8000
+```
+
+Then open <http://localhost:8000>. Endpoints:
+
+| Route | Purpose |
+| --- | --- |
+| `GET /` | HTML search form + results table |
+| `GET /api/search` | JSON API, e.g. `/api/search?search=earbuds&min_sales=50&min_offers=6` |
+| `GET /healthz` | Health check (also reports whether the API key is configured) |
+
+Query params for `/` and `/api/search`: `search` (or `q`), `category`, `domain`,
+`min_sales`, `min_offers`, `max_pages` (capped at 5), `check_offers` (`0`/`1`).
+
+## Deploy on Render.com
+
+This repo includes a [`render.yaml`](render.yaml) Blueprint, so deploying is a
+few clicks:
+
+1. Push this repo to GitHub (already done if you're reading this there).
+2. In Render: **New + → Blueprint**, and select this repository. Render reads
+   `render.yaml` and provisions a free **Web Service** that runs
+   `gunicorn amazon_finder.web:app`.
+3. When prompted (or under **Environment**), set the secret
+   **`RAINFOREST_API_KEY`** to your key. It's declared with `sync: false` so it
+   is never committed — you supply it in the dashboard.
+4. Deploy. Render gives you a URL like `https://amazon-product-finder.onrender.com`;
+   open it to use the search form, or call `/api/search` for JSON.
+
+Render auto-detects the port via `$PORT`, and `/healthz` is configured as the
+health check. Prefer not to use the Blueprint? Create a **Web Service** manually
+with build command `pip install -r requirements.txt` and the start command from
+the [`Procfile`](Procfile).
+
+> **Note:** Render's free web services sleep after inactivity, so the first
+> request after idle can take ~30–60s to wake. Each search also makes live
+> Rainforest API calls, which count against your Rainforest quota.
 
 ## Output
 

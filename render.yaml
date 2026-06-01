@@ -1,0 +1,17 @@
+# Render Blueprint. In the Render dashboard: New + -> Blueprint, point it at this
+# repo, and set the RAINFOREST_API_KEY value when prompted.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: amazon-product-finder
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn amazon_finder.web:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: RAINFOREST_API_KEY
+        sync: false          # set this secret in the Render dashboard
+      - key: PYTHON_VERSION
+        value: "3.12.4"
