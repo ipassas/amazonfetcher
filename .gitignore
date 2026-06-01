@@ -19,6 +19,12 @@ env/
 !package.json
 results/
 
+# Local data (search history / settings DB)
+data/
+*.db
+*.sqlite3
+ui_preview.html
+
 # Tooling
 .pytest_cache/
 .mypy_cache/

@@ -101,10 +101,10 @@ If installed via `pip install -e .`, use the `amazon-finder` command instead of
 
 You must provide a `--search` term and/or a `--category` id.
 
-## Web service
+## Web dashboard
 
-The same engine is exposed over HTTP so you can use it from a browser (this is
-what gets deployed to Render):
+The same engine is exposed as a pastel, card-based web dashboard (this is what
+gets deployed to Render):
 
 ```bash
 # local dev server
@@ -113,16 +113,33 @@ python -m amazon_finder.web
 gunicorn amazon_finder.web:app --bind 0.0.0.0:8000
 ```
 
-Then open <http://localhost:8000>. Endpoints:
+Then open <http://localhost:8000>. Features:
+
+- **Search** with the same filters as the CLI, shown as colourful product cards.
+- **History** — every search (criteria + full results) is saved to SQLite so you
+  can revisit a past run without spending another API call.
+- **Settings** — change the dashboard passcode and the provider API key directly
+  from the UI (stored in the DB, overriding the Blueprint env values).
+- **Passcode gate** — if a passcode is configured, the dashboard requires it.
 
 | Route | Purpose |
 | --- | --- |
-| `GET /` | HTML search form + results table |
+| `GET /` | Search form + results |
+| `GET /history`, `GET /history/<id>` | Past searches and a saved result set |
+| `GET /settings`, `POST /settings` | Change passcode / API key |
+| `GET/POST /login`, `GET /logout` | Passcode gate |
 | `GET /api/search` | JSON API, e.g. `/api/search?search=earbuds&min_sales=50&min_offers=6` |
-| `GET /healthz` | Health check (also reports whether the API key is configured) |
+| `GET /healthz` | Health check (reports provider, key + passcode status) |
 
 Query params for `/` and `/api/search`: `search` (or `q`), `category`, `domain`,
 `min_sales`, `min_offers`, `max_pages` (capped at 5), `check_offers` (`0`/`1`).
+
+### Passcode protection
+
+Set a passcode either via the **`ACCESS_CODE`** env var (Blueprint) or on the
+**Settings** page (stored as a salted hash). When set, all routes except
+`/login` and `/healthz` require the code. Sessions are signed with `SECRET_KEY`
+(auto-generated on Render). With no passcode configured, the dashboard is open.
 
 ## Deploy on Render.com
 
@@ -133,12 +150,17 @@ few clicks:
 2. In Render: **New + → Blueprint**, and select this repository. Render reads
    `render.yaml` and provisions a free **Web Service** that runs
    `gunicorn amazon_finder.web:app`.
-3. When prompted (or under **Environment**), set the secret
-   **`RAPIDAPI_KEY`** to your key. It's declared with `sync: false` so it is
-   never committed — you supply it in the dashboard. (`PROVIDER` defaults to
-   `rapidapi` in `render.yaml`.)
+3. When prompted (or under **Environment**), set the secrets:
+   - **`RAPIDAPI_KEY`** — your RapidAPI key (or set it later in Settings).
+   - **`ACCESS_CODE`** — the dashboard passcode (or set it later in Settings).
+   `PROVIDER` defaults to `rapidapi` and `SECRET_KEY` is auto-generated.
 4. Deploy. Render gives you a URL like `https://amazon-product-finder.onrender.com`;
-   open it to use the search form, or call `/api/search` for JSON.
+   open it to use the dashboard, or call `/api/search` for JSON.
+
+> **History persistence:** search history and UI-set settings live in a SQLite
+> file (`HISTORY_DB`). Render's **free** tier has an ephemeral filesystem, so
+> they reset on each deploy/restart. To keep them, upgrade the plan and attach a
+> persistent disk (see the commented `disk:` block in `render.yaml`).
 
 Render auto-detects the port via `$PORT`, and `/healthz` is configured as the
 health check. Prefer not to use the Blueprint? Create a **Web Service** manually
