@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import tempfile
 from datetime import datetime, timezone, timedelta
 
 DEFAULT_DB = "data/history.db"
@@ -27,8 +28,27 @@ _PARAM_KEYS = (
 )
 
 
+def _fallback_path() -> str:
+    directory = os.path.join(tempfile.gettempdir(), "amazon_finder")
+    os.makedirs(directory, exist_ok=True)
+    return os.path.join(directory, "history.db")
+
+
 def _db_path() -> str:
-    return os.environ.get("HISTORY_DB", DEFAULT_DB)
+    """Resolve a writable SQLite path.
+
+    Uses ``HISTORY_DB`` (default ``data/history.db``). If that directory can't
+    be created/written — e.g. ``/var/data`` on Render with no disk attached —
+    fall back to a temp directory so the app keeps working instead of 500-ing.
+    """
+    candidate = os.environ.get("HISTORY_DB", DEFAULT_DB)
+    directory = os.path.dirname(candidate)
+    try:
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        return candidate
+    except OSError:
+        return _fallback_path()
 
 
 def _connect() -> sqlite3.Connection:

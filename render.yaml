@@ -19,13 +19,12 @@ services:
         sync: false          # dashboard passcode (can also be changed in Settings)
       - key: SECRET_KEY
         generateValue: true  # Render generates a random value to sign sessions
-      - key: HISTORY_DB
-        value: /var/data/history.db   # persisted only if a disk is attached (below)
       - key: PYTHON_VERSION
         value: "3.12.4"
-    # Search history + UI-set settings live in SQLite. Render's free tier has an
-    # ephemeral filesystem, so they reset on each deploy/restart. To keep them,
-    # upgrade the plan and uncomment this disk (then HISTORY_DB above persists):
+    # Search history + UI-set settings live in SQLite. By default they go to
+    # ./data (writable, but ephemeral — they reset on each deploy/restart).
+    # To keep them, upgrade the plan, uncomment this disk, and set
+    # HISTORY_DB=/var/data/history.db as an env var above.
     # disk:
     #   name: data
     #   mountPath: /var/data

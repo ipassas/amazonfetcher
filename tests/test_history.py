@@ -2,6 +2,7 @@ import importlib
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from amazon_finder import history
 from amazon_finder.models import Product
@@ -47,6 +48,24 @@ class HistoryTests(unittest.TestCase):
 
     def test_missing(self):
         self.assertIsNone(history.get_search(999))
+
+    def test_db_path_falls_back_when_unwritable(self):
+        # Simulate Render with HISTORY_DB=/var/data/... and no disk attached.
+        os.environ["HISTORY_DB"] = "/var/data/history.db"
+        real_makedirs = os.makedirs
+
+        def fake_makedirs(directory, *a, **k):
+            if str(directory).startswith("/var/data"):
+                raise PermissionError(13, "Permission denied")
+            return real_makedirs(directory, *a, **k)
+
+        with mock.patch("os.makedirs", side_effect=fake_makedirs):
+            path = history._db_path()
+            self.assertNotEqual(path, "/var/data/history.db")
+            self.assertTrue(path.endswith("history.db"))
+            # And a real write works against the fallback path.
+            history.add_search(self._params("fallback"), [])
+            self.assertEqual(len(history.list_searches()), 1)
 
 
 if __name__ == "__main__":
