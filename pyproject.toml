@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amazon-finder"
+version = "0.1.0"
+description = "Find Amazon products by recent monthly sales and number of offers (sellers)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.28"]
+
+[project.scripts]
+amazon-finder = "amazon_finder.cli:main"
+
+[tool.setuptools]
+packages = ["amazon_finder"]
