@@ -255,7 +255,8 @@ def _nav(active: str) -> str:
     if settings_store.has_access_code() and session.get("authed"):
         links += f"<a href='{url_for('logout')}'>Logout</a>"
     return (
-        "<nav class='topbar'><div class='brand'><span class='dot'></span>ProductHunt</div>"
+        "<nav class='topbar'><div class='brand' data-tip='Never Get Married' title='Never Get Married'>"
+        "<span class='dot'></span>HaiderHunt</div>"
         f"<div class='navlinks'>{links}</div></nav>"
     )
 
@@ -421,7 +422,7 @@ def _login_page(nxt: str, error: str | None) -> str:
     err = f"<div class='banner error'>⚠️ {esc(error)}</div>" if error else ""
     body = (
         "<div class='login-wrap'><section class='card login-card'>"
-        "<div class='brand' style='justify-content:center'><span class='dot'></span>ProductHunt</div>"
+        "<div class='brand' data-tip='Never Get Married' title='Never Get Married' style='justify-content:center'><span class='dot'></span>HaiderHunt</div>"
         "<h1>Enter passcode</h1><p class='muted'>This dashboard is protected.</p>"
         + err
         + f"<form method='post' action='/login'><input type='hidden' name='next' value='{esc(nxt)}'>"
@@ -456,8 +457,13 @@ nav.topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;
 justify-content:space-between;max-width:1080px;margin:0 auto;padding:1rem 1.25rem;
 backdrop-filter:saturate(120%) blur(6px);}
 .brand{display:flex;align-items:center;gap:.5rem;font-family:'Bricolage Grotesque';
-font-weight:800;font-size:1.15rem;}
+font-weight:800;font-size:1.15rem;position:relative;cursor:default;}
 .brand .dot{width:13px;height:13px;border-radius:50%;background:var(--ink);}
+.brand[data-tip]::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 8px);
+background:var(--ink);color:#fff;font-family:'Inter',sans-serif;font-weight:600;font-size:.78rem;
+padding:.45rem .75rem;border-radius:12px;white-space:nowrap;opacity:0;transform:translateY(-4px);
+pointer-events:none;transition:opacity .15s ease,transform .15s ease;box-shadow:var(--shadow);z-index:20;}
+.brand[data-tip]:hover::after{opacity:1;transform:translateY(0);}
 .navlinks{display:flex;gap:.4rem;flex-wrap:wrap;}
 .navlinks a{text-decoration:none;font-weight:600;font-size:.88rem;padding:.5rem .9rem;
 border-radius:999px;background:#fff;border:1px solid var(--line);}
