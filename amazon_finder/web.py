@@ -15,10 +15,15 @@ import os
 
 from flask import Flask, request, jsonify, Response
 
-from .finder import Criteria, find_products
-from .rainforest import RainforestClient, RainforestError
+from .errors import ProviderError
+from .finder import Criteria
+from .providers import DEFAULT_PROVIDER, PROVIDER_ENV, build_provider
 
 app = Flask(__name__)
+
+
+def _provider_name() -> str:
+    return (request.args.get("provider") or os.environ.get("PROVIDER") or DEFAULT_PROVIDER).lower()
 
 # Cap pages so a single web request can't fan out into a huge (slow/costly) job.
 MAX_PAGES_LIMIT = 5
@@ -47,10 +52,11 @@ def _run_search() -> tuple[list, dict]:
         "max_pages": _int_arg("max_pages", 1, low=1, high=MAX_PAGES_LIMIT),
         "check_offers": request.args.get("check_offers", "1") not in ("0", "false", "off"),
     }
-    api_key = os.environ.get("RAINFOREST_API_KEY", "")
-    client = RainforestClient(api_key, amazon_domain=params["domain"])
-    products = find_products(
-        client,
+    provider_name = _provider_name()
+    params["provider"] = provider_name
+    api_key = os.environ.get(PROVIDER_ENV.get(provider_name, ""), "")
+    provider = build_provider(provider_name, api_key=api_key, domain=params["domain"])
+    products = provider.find(
         search_term=params["search"] or None,
         category_id=params["category"] or None,
         criteria=Criteria(
@@ -59,15 +65,19 @@ def _run_search() -> tuple[list, dict]:
             check_offers=params["check_offers"],
         ),
         max_pages=params["max_pages"],
+        sort_by=None,
+        on_progress=None,
     )
     return products, params
 
 
 @app.get("/healthz")
 def healthz() -> Response:
+    provider = (os.environ.get("PROVIDER") or DEFAULT_PROVIDER).lower()
     return jsonify(
         status="ok",
-        api_key_configured=bool(os.environ.get("RAINFOREST_API_KEY")),
+        provider=provider,
+        api_key_configured=bool(os.environ.get(PROVIDER_ENV.get(provider, ""))),
     )
 
 
@@ -77,7 +87,7 @@ def api_search():
         return jsonify(error="Provide a 'search' (or 'q') term and/or a 'category' id."), 400
     try:
         products, params = _run_search()
-    except RainforestError as exc:
+    except ProviderError as exc:
         return jsonify(error=str(exc)), 502
     return jsonify(
         criteria=params,
@@ -101,13 +111,14 @@ def index() -> Response:
         "min_offers": request.args.get("min_offers", "6"),
         "max_pages": request.args.get("max_pages", "1"),
         "check_offers": request.args.get("check_offers", "1") not in ("0", "false", "off"),
+        "provider": _provider_name(),
     }
     if has_query:
         try:
             products, ran = _run_search()
             params.update({k: str(v) for k, v in ran.items()})
             params["check_offers"] = ran["check_offers"]
-        except RainforestError as exc:
+        except ProviderError as exc:
             error = str(exc)
     return Response(_render_page(params, products, error, has_query), mimetype="text/html")
 
@@ -216,7 +227,8 @@ def _render_page(params: dict, products: list, error: str | None, has_query: boo
   </form>
   {error_block}
   {results_block}
-  <p class="hint">JSON API: <span class="mono">/api/search?search=earbuds&amp;min_sales=50&amp;min_offers=6</span></p>
+  <p class="hint">Data provider: <span class="mono">{esc(params.get('provider', ''))}</span> &nbsp;·&nbsp;
+     JSON API: <span class="mono">/api/search?search=earbuds&amp;min_sales=50&amp;min_offers=6</span></p>
 </div>
 </body>
 </html>"""

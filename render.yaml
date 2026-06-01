@@ -11,7 +11,9 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      - key: RAINFOREST_API_KEY
+      - key: PROVIDER
+        value: rapidapi
+      - key: RAPIDAPI_KEY
         sync: false          # set this secret in the Render dashboard
       - key: PYTHON_VERSION
         value: "3.12.4"

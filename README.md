@@ -10,28 +10,32 @@ as a **web service you can deploy to [Render.com](https://render.com)** (see
 2. **Number of offers (sellers)** — how many sellers compete on the listing
    (default threshold: **more than 5**, i.e. `--min-offers 6`).
 
-Data comes from the [Rainforest API](https://www.rainforestapi.com/), which
-returns Amazon search results and per-product offer data as clean JSON.
-(Amazon's own APIs do **not** expose the "bought in past month" figure, which is
-why a data provider is required.)
+Amazon's own APIs do **not** expose the "bought in past month" figure, so a data
+provider is required. The data source is **pluggable** (`--provider`):
+
+| Provider | Default | Notes |
+| --- | --- | --- |
+| **`rapidapi`** | ✅ | [Real-Time Amazon Data](https://rapidapi.com/letscrape-6bRBa3QguO5/api/real-time-amazon-data) on RapidAPI. Has a **free Basic plan**. Returns `sales_volume` + `product_num_offers` in one call. |
+| `rainforest` | | [Rainforest API](https://www.rainforestapi.com/). Paid. Kept for compatibility. |
+
+Set the key for whichever provider you pick (`RAPIDAPI_KEY` or
+`RAINFOREST_API_KEY`).
 
 ## How it works
 
 ```
-search term ──▶ Rainforest search ──▶ parse "X+ bought in past month"
-                                          │
-                       drop anything below --min-sales   (no extra cost)
-                                          │
-              for survivors only: Rainforest offers lookup ──▶ count sellers
-                                          │
-                        keep products with ≥ --min-offers sellers
+search term ──▶ provider search ──▶ parse "X+ bought in past month"
+                                          │              + offers count
+                                          ▼
+                  keep products with ≥ --min-sales AND ≥ --min-offers
                                           ▼
                           table / CSV / JSON output
 ```
 
-The two-stage filter is deliberate: the cheap sales filter runs first so the
-billed per-product **offers** lookups only happen for products already worth
-checking.
+With the default **RapidAPI** provider, each result already carries both the
+sales badge and the offer count, so one request per page covers everything.
+(The `rainforest` provider instead does a cheap sales pre-filter first, then a
+billed per-product offers lookup only for the survivors.)
 
 ## Install
 
@@ -45,13 +49,18 @@ Requires Python 3.10+.
 
 ## Configure your API key
 
-Get a key from Rainforest, then either export it or use a `.env` file:
+Default provider is **RapidAPI**. Subscribe (free Basic plan) to
+[Real-Time Amazon Data](https://rapidapi.com/letscrape-6bRBa3QguO5/api/real-time-amazon-data),
+copy your RapidAPI key, then either export it or use a `.env` file:
 
 ```bash
-export RAINFOREST_API_KEY=your_key_here
+export RAPIDAPI_KEY=your_key_here
 # or:
 cp .env.example .env   # then edit .env
 ```
+
+To use Rainforest instead: set `RAINFOREST_API_KEY` and pass `--provider rainforest`
+(CLI) or `PROVIDER=rainforest` (web).
 
 ## Usage
 
@@ -79,7 +88,8 @@ If installed via `pip install -e .`, use the `amazon-finder` command instead of
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `-s, --search` | — | Search keyword |
-| `-c, --category` | — | Rainforest `category_id` to browse |
+| `-c, --category` | — | Category id to browse |
+| `--provider` | `rapidapi` | Data backend: `rapidapi` or `rainforest` |
 | `--min-sales` | `50` | Minimum "bought in past month" (inclusive) |
 | `--min-offers` | `6` | Minimum sellers (inclusive; 6 = *more than 5*) |
 | `--max-pages` | `1` | Search-result pages to scan |
@@ -124,8 +134,9 @@ few clicks:
    `render.yaml` and provisions a free **Web Service** that runs
    `gunicorn amazon_finder.web:app`.
 3. When prompted (or under **Environment**), set the secret
-   **`RAINFOREST_API_KEY`** to your key. It's declared with `sync: false` so it
-   is never committed — you supply it in the dashboard.
+   **`RAPIDAPI_KEY`** to your key. It's declared with `sync: false` so it is
+   never committed — you supply it in the dashboard. (`PROVIDER` defaults to
+   `rapidapi` in `render.yaml`.)
 4. Deploy. Render gives you a URL like `https://amazon-product-finder.onrender.com`;
    open it to use the search form, or call `/api/search` for JSON.
 
@@ -135,8 +146,9 @@ with build command `pip install -r requirements.txt` and the start command from
 the [`Procfile`](Procfile).
 
 > **Note:** Render's free web services sleep after inactivity, so the first
-> request after idle can take ~30–60s to wake. Each search also makes live
-> Rainforest API calls, which count against your Rainforest quota.
+> request after idle can take ~30–60s to wake. Each search also makes live API
+> calls that count against your provider's monthly quota (the RapidAPI free
+> Basic plan has a limited number of requests).
 
 ## Output
 
@@ -152,9 +164,10 @@ Exit code is `0` when at least one product matched, `1` when none matched, and
 - The "bought in past month" badge is a coarse, Amazon-supplied floor (`50+`,
   `1K+`, …). The tool parses it into an integer floor for comparison; it is not
   an exact sales count.
-- Each product that passes the sales filter costs **one extra** Rainforest
-  request for the offers lookup. Use `--no-check-offers` or a tighter
-  `--min-sales` to control cost.
+- With the `rainforest` provider, each product that passes the sales filter
+  costs **one extra** request for the offers lookup; use `--no-check-offers` or
+  a tighter `--min-sales` to control cost. The default `rapidapi` provider
+  returns offers inline, so this doesn't apply.
 - Listings without a recent-sales badge are treated as *below threshold* and
   excluded.
 
