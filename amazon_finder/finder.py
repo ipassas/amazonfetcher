@@ -19,6 +19,21 @@ class Criteria:
     check_offers: bool = True
 
 
+def matches(product: Product, criteria: Criteria) -> bool:
+    """True if a fully-populated product clears the criteria.
+
+    Unknown values never pass: a missing sales badge or offer count is treated
+    as below threshold. ``check_offers=False`` skips the seller requirement.
+    """
+    if product.recent_sales is None or product.recent_sales < criteria.min_sales:
+        return False
+    if criteria.check_offers and (
+        product.offers_count is None or product.offers_count < criteria.min_offers
+    ):
+        return False
+    return True
+
+
 def product_from_search_result(result: dict) -> Product:
     """Build a :class:`Product` from one Rainforest search-result entry."""
     price = result.get("price") or {}
@@ -92,7 +107,7 @@ def find_products(
     for i, product in enumerate(sales_passed, start=1):
         log(f"Checking offers {i}/{len(sales_passed)}: {product.asin}")
         product.offers_count = client.offers_count(product.asin)
-        if product.offers_count is not None and product.offers_count >= criteria.min_offers:
+        if matches(product, criteria):
             matched.append(product)
 
     log(f"{len(matched)} products clear > {criteria.min_offers - 1} offers.")

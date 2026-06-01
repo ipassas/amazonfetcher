@@ -13,10 +13,12 @@ from typing import Iterator
 
 import requests
 
+from .errors import ProviderError
+
 BASE_URL = "https://api.rainforestapi.com/request"
 
 
-class RainforestError(RuntimeError):
+class RainforestError(ProviderError):
     """Raised when the Rainforest API returns an error or invalid response."""
 
 

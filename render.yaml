@@ -1,0 +1,32 @@
+# Render Blueprint. In the Render dashboard: New + -> Blueprint, point it at this
+# repo, then set the secret values (RAPIDAPI_KEY, ACCESS_CODE) when prompted.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: amazon-product-finder
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn amazon_finder.web:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PROVIDER
+        value: rapidapi
+      - key: RAPIDAPI_KEY
+        sync: false          # your RapidAPI key (can also be set later in Settings)
+      - key: ACCESS_CODE
+        sync: false          # dashboard passcode (can also be changed in Settings)
+      - key: SECRET_KEY
+        generateValue: true  # Render generates a random value to sign sessions
+      - key: HISTORY_DB
+        value: /var/data/history.db   # persisted only if a disk is attached (below)
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+    # Search history + UI-set settings live in SQLite. Render's free tier has an
+    # ephemeral filesystem, so they reset on each deploy/restart. To keep them,
+    # upgrade the plan and uncomment this disk (then HISTORY_DB above persists):
+    # disk:
+    #   name: data
+    #   mountPath: /var/data
+    #   sizeGB: 1

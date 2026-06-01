@@ -8,9 +8,15 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .finder import Criteria, find_products
+from .errors import ProviderError
+from .finder import Criteria
 from .output import render
-from .rainforest import RainforestClient, RainforestError
+from .providers import (
+    DEFAULT_PROVIDER,
+    PROVIDER_ENV,
+    PROVIDERS,
+    build_provider,
+)
 
 
 def _load_dotenv(path: str = ".env") -> None:
@@ -86,7 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--api-key", help="Rainforest API key (else RAINFOREST_API_KEY env / .env).",
+        "--provider", default=DEFAULT_PROVIDER, choices=PROVIDERS,
+        help="Data backend to use.",
+    )
+    parser.add_argument(
+        "--api-key",
+        help="API key (else the provider's env var, e.g. RAPIDAPI_KEY, from env / .env).",
     )
     return parser
 
@@ -99,16 +110,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("provide a --search term and/or a --category id")
 
     _load_dotenv()
-    api_key = args.api_key or os.environ.get("RAINFOREST_API_KEY", "")
+    api_key = args.api_key or os.environ.get(PROVIDER_ENV[args.provider], "")
 
     def progress(msg: str) -> None:
         if not args.quiet:
             print(msg, file=sys.stderr)
 
     try:
-        client = RainforestClient(api_key, amazon_domain=args.domain)
-        products = find_products(
-            client,
+        provider = build_provider(args.provider, api_key=api_key, domain=args.domain)
+        products = provider.find(
             search_term=args.search,
             category_id=args.category_id,
             criteria=Criteria(
@@ -120,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             sort_by=args.sort_by,
             on_progress=progress,
         )
-    except RainforestError as exc:
+    except ProviderError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
